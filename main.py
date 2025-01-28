@@ -4,8 +4,15 @@
 
 
 from tkinter import *
+from tkinter import filedialog
+
 from PIL import Image, ImageTk
 import tkinter.ttk as ttk
+from cryptography.fernet import Fernet
+
+key = Fernet.generate_key()
+cipher_suite = Fernet(key)
+
 
 
 secret_note_window = Tk()
@@ -67,7 +74,7 @@ def save_button_clicked():
         elif input2 == "":
             error_message = "Please enter your secret"
             error_popup(error_message)
-            print("Please Enter a correct value")
+            print("Please Enter a correct value 2")
         else:
             with open(f"{file_name}", "a") as f:
                 f.write(f"{input1}\n")
@@ -106,6 +113,35 @@ def error_popup(error_message):
 
     error_window.mainloop()
 
+def load_file():
+    file_path = filedialog.askopenfilename()
+    if not file_path:
+        return None
+    with open(file_path, 'rb') as file:
+        return file.read()
+
+def save_file(content, mode='wb'):
+    file_path = filedialog.asksaveasfilename()
+    if not file_path:
+        return
+    with open(file_path, mode) as file:
+        file.write(content)
+
+def encrypt(status_label=None):
+    content = load_file()
+    if content is not None:
+        cipher_text = cipher_suite.encrypt(content)
+        save_file(cipher_text)
+        status_label.config(text="File encrypted successfully!")
+
+def decrypt(status_label=None):
+    content = load_file()
+    if content is not None:
+        plain_text = cipher_suite.decrypt(content)
+        save_file(plain_text)
+        status_label.config(text="File decrypted successfully!")
+
+
 
 #save&encrypt button
 save_button = ttk.Button(text="Save & Encrypt",command=save_button_clicked, style="Custom.TButton")
@@ -115,6 +151,7 @@ save_button.pack()
 decrypt_button = ttk.Button(text="Decrypt",command=None,style="Custom.TButton")
 decrypt_button.config()
 decrypt_button.pack()
+
 
 
 
