@@ -1,29 +1,68 @@
-#message box
-#görsel koyma
-#criptography
-
-
 from tkinter import *
 from tkinter import filedialog
-
 from PIL import Image, ImageTk
 import tkinter.ttk as ttk
 from cryptography.fernet import Fernet
+import os
+import hashlib
 
-key = Fernet.generate_key()
-cipher_suite = Fernet(key)
+key_file = "encryption_key.key"
 
+# Anahtarın dosyadan okunması veya oluşturulup saklanması
+
+
+# Şifreleme anahtarını yükleme veya oluşturma
+def load_or_create_key():
+    if os.path.exists(key_file):
+        with open(key_file, "rb") as file:
+            return file.read()
+    else:
+        def save_password():
+            user_password = pass_entry.get()
+            if user_password:
+                encryption_key = Fernet.generate_key()
+                with open(key_file, "wb") as file:
+                    file.write(encryption_key)
+                pass_entry_window.destroy()  # Şifre penceresini kapat
+            else:
+                error_label.config(text="Password cannot be empty!", fg="red")
+
+        pass_entry_window = Tk()
+        pass_entry_window.configure(padx=10, pady=10, bg="white")
+        pass_entry_window.wm_title("Define Encryption Password")
+
+        pass_label = Label(pass_entry_window, text="Enter a password to secure your key:", bg="white")
+        pass_label.pack(pady=5)
+
+        pass_entry = Entry(pass_entry_window, show="*", width=30)
+        pass_entry.pack(pady=5)
+
+        error_label = Label(pass_entry_window, text="", bg="white")
+        error_label.pack(pady=5)
+
+        pass_entry_save_button = ttk.Button(pass_entry_window, text="Save Password", command=save_password)
+        pass_entry_save_button.pack(pady=10)
+
+        pass_entry_window.mainloop()
+
+        # Anahtarı geri dön
+        if os.path.exists(key_file):
+            with open(key_file, "rb") as file:
+                return file.read()
+        else:
+            raise Exception("Failed to create key file.")
+
+
+
+# Anahtar yükleme veya oluşturma
+passkey = load_or_create_key()
+cipher_suite = Fernet(passkey)
 
 
 secret_note_window = Tk()
 secret_note_window.title("SECRET NOTE")
 secret_note_window.config(bg="light grey",padx=20, pady=10, width=350, height=600)
 FONT = ('Arial', 15, 'bold')
-'''
-image = PhotoImage(file="ts.png")
-image_label = Label(image=image, bg="light grey")
-image_label.pack()
-'''
 #adding image
 img = Image.open("ts.png")
 resized_image = img.resize((150,150))
@@ -60,9 +99,23 @@ master_key_entry.pack()
 style_button = ttk.Style()
 style_button.configure("Custom.TButton", background="light grey", foreground="black")
 
+def save_master_password(password):
+    hashed_password = hashlib.sha256(password.encode()).hexdigest()
+    with open("encryption_key.key", "w") as file:
+        file.write(hashed_password)
+
+def check_master_password(password):
+    hashed_password = hashlib.sha256(password.encode()).hexdigest()
+    if os.path.exists("encryption_key.key"):
+        with open("encryption_key.key", "r") as file:
+            stored_password = file.read()
+            return hashed_password == stored_password
+    return False
+
+
 def save_button_clicked():
     master_key_check = master_key_entry.get()
-    if master_key_check == "Password":
+    if check_master_password(master_key_check):
         input1 = note_entry.get()
         input2 = secret_text.get("0.0", END)
         file_name = str("myNotes.txt")
@@ -82,13 +135,14 @@ def save_button_clicked():
                 note_entry.delete(0, END)
                 secret_text.delete("0.0", END)
                 f.close()
+                encrypt()
             master_key_entry.delete(0, END)
     elif master_key_check == "":
         error_message = "Please Enter Password"
         error_popup(error_message)
         print("please enter password")
     else:
-        error_message = "Password is incorrect"
+        error_message = "Incorrect Password"
         error_popup(error_message)
         print("incorrect Password")
 
@@ -114,41 +168,51 @@ def error_popup(error_message):
     error_window.mainloop()
 
 def load_file():
-    file_path = filedialog.askopenfilename()
+    file_path = filedialog.askopenfilename(filetypes=[("Encrypted Files", "*.enc"), ("All Files", "*.*")])
     if not file_path:
         return None
     with open(file_path, 'rb') as file:
         return file.read()
 
 def save_file(content, mode='wb'):
-    file_path = filedialog.asksaveasfilename()
+    file_path = filedialog.asksaveasfilename(defaultextension=".enc", filetypes=[("Encrypted Files", "*.enc"), ("All Files", "*.*")])
     if not file_path:
         return
     with open(file_path, mode) as file:
         file.write(content)
 
 def encrypt(status_label=None):
-    content = load_file()
-    if content is not None:
-        cipher_text = cipher_suite.encrypt(content)
-        save_file(cipher_text)
-        status_label.config(text="File encrypted successfully!")
+    try:
+        content = load_file()
+        if content:
+            cipher_text = cipher_suite.encrypt(content)  # İçeriği şifrele
+            save_file(cipher_text)  # Şifrelenmiş içeriği dosyaya kaydet
+            if status_label:
+                status_label.config(text="File encrypted successfully!")
+    except Exception as e:
+        if status_label:
+            status_label.config(text=f"Encryption failed: {e}")
+        print(f"Error during encryption: {e}")
 
 def decrypt(status_label=None):
-    content = load_file()
-    if content is not None:
-        plain_text = cipher_suite.decrypt(content)
-        save_file(plain_text)
-        status_label.config(text="File decrypted successfully!")
-
-
+    try:
+        content = load_file()
+        if content:
+            plain_text = cipher_suite.decrypt(content).decode("utf-8")  # Bytes'ı decode ettik
+            save_file(plain_text, mode="w")  # Şifre çözülmüş metni kaydediyoruz
+            if status_label:
+                status_label.config(text="File decrypted successfully!")
+    except Exception as e:
+        if status_label:
+            status_label.config(text=f"Decryption failed: {e}")
+        print(f"Error during decryption: {e}")
 
 #save&encrypt button
 save_button = ttk.Button(text="Save & Encrypt",command=save_button_clicked, style="Custom.TButton")
 save_button.config()
 save_button.pack()
 #decrypt button
-decrypt_button = ttk.Button(text="Decrypt",command=None,style="Custom.TButton")
+decrypt_button = ttk.Button(text="Decrypt",command=decrypt,style="Custom.TButton")
 decrypt_button.config()
 decrypt_button.pack()
 
